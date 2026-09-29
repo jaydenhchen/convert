@@ -37,6 +37,7 @@ The generated STL is shown in an interactive viewer before download:
 - `[` / `]`: rotate the current view left/right by 90°
 - `R`: flip the current view by 180°
 - Drag to orbit, scroll to zoom, right-drag to pan
+- Click a flat mesh face to align the camera parallel to that face; curved or faceted surfaces align to the clicked triangle.
 
 The section controls let you choose the `YZ`, `XZ`, or `XY` plane, move it through the model, and flip between the high and low side of the cut. Section hatching is generated as uniform 45° inspection lines. The theme toggle switches between light and dark UI themes.
 
