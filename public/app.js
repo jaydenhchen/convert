@@ -124,7 +124,7 @@ function createViewer(stlBlob) {
     const material = new THREE.MeshStandardMaterial({ color: 0xc9d6cd, metalness: 0.32, roughness: 0.45, side: THREE.DoubleSide, clippingPlanes: [] });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
-    const capMaterial = new THREE.MeshStandardMaterial({ color: 0xb8c9bf, metalness: 0.22, roughness: 0.56, side: THREE.DoubleSide });
+    const capMaterial = new THREE.MeshStandardMaterial({ color: 0x4f9fe8, metalness: 0.12, roughness: 0.5, side: THREE.DoubleSide });
     const capMesh = new THREE.Mesh(new THREE.BufferGeometry(), capMaterial);
     capMesh.frustumCulled = false;
     capMesh.visible = false;

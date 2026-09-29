@@ -39,7 +39,7 @@ The generated STL is shown in an interactive viewer before download:
 - Drag to orbit, scroll to zoom, right-drag to pan
 - Click a flat mesh face to align the camera parallel to that face; curved or faceted surfaces align to the clicked triangle.
 
-The section controls let you choose the `YZ`, `XZ`, or `XY` plane, move it through the model, and flip between the high and low side of the cut. Cross sections are capped with generated solid faces, including separate loops and interior holes where the STL intersection supports them. Section hatching is generated as uniform 45° inspection lines. The theme toggle switches between light and dark UI themes.
+The section controls let you choose the `YZ`, `XZ`, or `XY` plane, move it through the model, and flip between the high and low side of the cut. Cross sections are capped with generated blue faces, including separate loops, interior holes, and planar hull fallbacks for fragmented imported surface components. Section hatching is generated as uniform 45° inspection lines. The theme toggle switches between light and dark UI themes.
 
 Mechanical drawing settings provide mutually exclusive `Shaded`, `Shaded + outlines`, `Wireframe`, and `Hidden lines` styles. Hidden lines use mesh sharp-edge filtering plus depth testing so occluded edges are dashed instead of every triangulation edge being shown. Independent overlay checkboxes enable center lines, center marks, section hatching, projection lines, origin axes, and the bounding box.
 

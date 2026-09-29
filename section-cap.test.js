@@ -31,6 +31,16 @@ test('caps an axis-aligned solid section with filled triangles', () => {
   for (let index = 0; index < positions.count; index += 1) assert.equal(positions.getX(index), 0);
 });
 
+test('fills an open cut component with its planar hull', () => {
+  const geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([
+    -1, 0, 0, 0, 1, 0, 0, 0, 1,
+    0, 1, 0, 1, 0, 0, 0, 0, 1
+  ], 3));
+  const cap = buildSectionCapGeometry(geometry, 2, 0);
+
+  assert.equal(projectedArea(cap, 2), 1);
+});
+
 test('returns an empty cap when the plane misses the model', () => {
   const cap = buildSectionCapGeometry(new THREE.BoxGeometry(2, 2, 2), 2, 2);
   assert.equal(cap.getAttribute('position'), undefined);
