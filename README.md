@@ -36,7 +36,7 @@ The generated STL is shown in an interactive viewer before download:
 - `X`: toggle the cross-section plane
 - Drag to orbit, scroll to zoom, right-drag to pan
 
-The section controls let you choose the `YZ`, `XZ`, or `XY` plane and move it through the model. STL has no units, so confirm scale in the slicer before printing.
+The section controls let you choose the `YZ`, `XZ`, or `XY` plane and move it through the model. Mechanical drawing settings provide mutually exclusive `Shaded`, `Shaded + outlines`, `Wireframe`, and `Hidden lines` styles. Independent overlay checkboxes enable center lines, center marks, section hatching, projection lines, origin axes, and the bounding box. These are inspection aids generated from the tessellated mesh, not dimensionally annotated drafting views. STL has no units, so confirm scale in the slicer before printing.
 
 ## Implementation
 
