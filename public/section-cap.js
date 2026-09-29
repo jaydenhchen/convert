@@ -57,8 +57,57 @@ function collectLoops(segments, nodes) {
   }
   return loops;
 }
+function collectComponents(segments) {
+  const adjacency = new Map();
+  for (const [first, second] of segments) {
+    if (!adjacency.has(first)) adjacency.set(first, new Set());
+    if (!adjacency.has(second)) adjacency.set(second, new Set());
+    adjacency.get(first).add(second);
+    adjacency.get(second).add(first);
+  }
+  const visited = new Set();
+  const components = [];
+  for (const start of adjacency.keys()) {
+    if (visited.has(start)) continue;
+    const component = [];
+    const pending = [start];
+    visited.add(start);
+    while (pending.length) {
+      const current = pending.pop();
+      component.push(current);
+      for (const neighbor of adjacency.get(current)) {
+        if (visited.has(neighbor)) continue;
+        visited.add(neighbor);
+        pending.push(neighbor);
+      }
+    }
+    components.push(component);
+  }
+  return components;
+}
 
-function triangulateLoops(loops, nodes, axisIndex, tolerance, normalSign) {
+function convexHull(nodeIds, nodes, axisIndex) {
+  const [uAxis, vAxis] = getPlaneAxes(axisIndex);
+  const points = nodeIds.map((nodeId) => {
+    const point = nodes[nodeId].point;
+    return { nodeId, u: point.getComponent(uAxis), v: point.getComponent(vAxis) };
+  }).sort((first, second) => first.u - second.u || first.v - second.v);
+  const cross = (origin, first, second) => (first.u - origin.u) * (second.v - origin.v) - (first.v - origin.v) * (second.u - origin.u);
+  const lower = [];
+  for (const point of points) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], point) <= 0) lower.pop();
+    lower.push(point);
+  }
+  const upper = [];
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const point = points[index];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], point) <= 0) upper.pop();
+    upper.push(point);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)].map(({ nodeId }) => nodeId);
+}
+
+function triangulateLoops(loops, nodes, axisIndex, tolerance, normalSign, fallbackLoops = []) {
   const [uAxis, vAxis] = getPlaneAxes(axisIndex);
   const loopData = loops.map((loop) => {
     const contour = loop.map((nodeId) => {
@@ -115,6 +164,22 @@ function triangulateLoops(loops, nodes, axisIndex, tolerance, normalSign) {
     }
   }
 
+  for (const loop of fallbackLoops) {
+    const contour = loop.map((nodeId) => {
+      const point = nodes[nodeId].point;
+      return new Vector2(point.getComponent(uAxis), point.getComponent(vAxis));
+    });
+    if (Math.abs(ShapeUtils.area(contour)) <= tolerance * tolerance) continue;
+    const points = loop.map((nodeId) => nodes[nodeId].point);
+    const triangles = ShapeUtils.triangulateShape(contour, []);
+    for (const triangle of triangles) {
+      for (const pointIndex of triangle) {
+        const point = points[pointIndex];
+        positions.push(point.x, point.y, point.z);
+        normals.push(normal.x, normal.y, normal.z);
+      }
+    }
+  }
   const geometry = new BufferGeometry();
   if (positions.length) {
     geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
@@ -131,20 +196,28 @@ export function buildSectionCapGeometry(sourceGeometry, axisIndex, coordinate, n
   if (!sourceGeometry.boundingBox) sourceGeometry.computeBoundingBox();
   const extent = sourceGeometry.boundingBox.getSize(new Vector3()).length();
   const tolerance = Math.max(extent * 1e-6, 1e-8);
+  const nodeByCell = new Map();
   const nodes = [];
-  const nodeByKey = new Map();
   const segments = [];
   const segmentKeys = new Set();
   const vertices = [new Vector3(), new Vector3(), new Vector3()];
 
   const getNodeId = (point) => {
     const [uAxis, vAxis] = getPlaneAxes(axisIndex);
-    const key = `${Math.round(point.getComponent(uAxis) / tolerance)},${Math.round(point.getComponent(vAxis) / tolerance)}`;
-    const existing = nodeByKey.get(key);
-    if (existing !== undefined) return existing;
+    const cellU = Math.round(point.getComponent(uAxis) / tolerance);
+    const cellV = Math.round(point.getComponent(vAxis) / tolerance);
+    for (let offsetU = -1; offsetU <= 1; offsetU += 1) {
+      for (let offsetV = -1; offsetV <= 1; offsetV += 1) {
+        const bucket = nodeByCell.get(`${cellU + offsetU},${cellV + offsetV}`) ?? [];
+        const existing = bucket.find((nodeId) => nodes[nodeId].point.distanceToSquared(point) <= tolerance * tolerance);
+        if (existing !== undefined) return existing;
+      }
+    }
     const nodeId = nodes.length;
     nodes.push({ point: point.clone() });
-    nodeByKey.set(key, nodeId);
+    const key = `${cellU},${cellV}`;
+    if (!nodeByCell.has(key)) nodeByCell.set(key, []);
+    nodeByCell.get(key).push(nodeId);
     return nodeId;
   };
 
@@ -205,5 +278,10 @@ export function buildSectionCapGeometry(sourceGeometry, axisIndex, coordinate, n
     segments.push([firstNode, secondNode]);
   }
   const loops = collectLoops(segments, nodes);
-  return triangulateLoops(loops, nodes, axisIndex, tolerance, normalSign);
+  const closedLoopNodes = new Set(loops.flat());
+  const fallbackLoops = collectComponents(segments)
+    .filter((component) => !component.some((nodeId) => closedLoopNodes.has(nodeId)))
+    .map((component) => convexHull(component, nodes, axisIndex))
+    .filter((loop) => loop.length >= 3);
+  return triangulateLoops(loops, nodes, axisIndex, tolerance, normalSign, fallbackLoops);
 }
