@@ -73,9 +73,9 @@ function createViewer(stlBlob) {
       <button class="button button-small" id="download-button" type="button">Download STL <span aria-hidden="true">↓</span></button>
     </div>
     <div class="viewer-layout">
-      <div class="viewport" id="viewport"><div class="viewer-help">Drag to orbit · scroll to zoom · right-drag to pan</div></div>
+      <div class="viewport" id="viewport"><div class="viewer-help">Click a flat face to align the view · drag to orbit · scroll to zoom · right-drag to pan</div></div>
       <aside class="viewer-controls">
-        <div class="control-group"><h3>Camera</h3><div class="view-grid"><button data-view="front">Front <kbd>1</kbd></button><button data-view="back">Back <kbd>2</kbd></button><button data-view="top">Top <kbd>3</kbd></button><button data-view="bottom">Bottom <kbd>4</kbd></button><button data-view="left">Left <kbd>5</kbd></button><button data-view="right">Right <kbd>6</kbd></button></div><button class="control-wide" id="home-button">Home view <kbd>H</kbd></button><div class="rotation-grid"><button type="button" id="rotate-left">Rotate left <kbd>[</kbd></button><button type="button" id="rotate-right">Rotate right <kbd>]</kbd></button><button type="button" id="flip-view">Flip 180° <kbd>R</kbd></button></div><button class="control-wide" id="projection-button">Perspective <kbd>O</kbd></button><button class="control-wide" id="fit-button">Fit model <kbd>F</kbd></button></div>
+        <div class="control-group"><h3>Camera</h3><div class="view-grid"><button type="button" data-view="front" aria-pressed="false">Front <kbd>1</kbd></button><button type="button" data-view="back" aria-pressed="false">Back <kbd>2</kbd></button><button type="button" data-view="top" aria-pressed="false">Top <kbd>3</kbd></button><button type="button" data-view="bottom" aria-pressed="false">Bottom <kbd>4</kbd></button><button type="button" data-view="left" aria-pressed="false">Left <kbd>5</kbd></button><button type="button" data-view="right" aria-pressed="false">Right <kbd>6</kbd></button></div><button type="button" class="control-wide" id="home-button">Home view <kbd>H</kbd></button><div class="rotation-grid"><button type="button" id="rotate-left">Rotate left <kbd>[</kbd></button><button type="button" id="rotate-right">Rotate right <kbd>]</kbd></button><button type="button" id="flip-view">Flip 180° <kbd>R</kbd></button></div><button type="button" class="control-wide" id="projection-button">Perspective <kbd>O</kbd></button><button type="button" class="control-wide" id="fit-button">Fit model <kbd>F</kbd></button></div>
         <div class="control-group"><h3>Section</h3><label class="toggle-row"><input id="section-toggle" type="checkbox"><span>Toggle cross section <kbd>X</kbd></span></label><div class="axis-control"><span class="axis-label">Plane orientation</span><div class="axis-grid" role="group" aria-label="Cross-section plane orientation"><button type="button" data-section-axis="x" aria-pressed="true">YZ <small>normal X</small></button><button type="button" data-section-axis="y" aria-pressed="false">XZ <small>normal Y</small></button><button type="button" data-section-axis="z" aria-pressed="false">XY <small>normal Z</small></button></div></div><label class="range-row" for="section-range">Cut position <output id="section-value">YZ · 50%</output><input id="section-range" type="range" min="0" max="100" value="50" disabled></label><button class="control-wide" id="section-side" type="button">Showing high side</button></div>
         <div class="control-group"><h3>Mechanical drawing</h3><fieldset class="mode-options"><legend>Display style</legend><label><input type="radio" name="display-mode" value="shaded" checked><span>Shaded</span></label><label><input type="radio" name="display-mode" value="outlined"><span>Shaded + outlines</span></label><label><input type="radio" name="display-mode" value="wireframe"><span>Wireframe</span></label><label><input type="radio" name="display-mode" value="hidden"><span>Hidden lines</span></label></fieldset><fieldset class="check-options"><legend>Drawing overlays</legend><label><input id="overlay-center-lines" type="checkbox"><span>Center lines</span></label><label><input id="overlay-center-marks" type="checkbox"><span>Center marks</span></label><label><input id="overlay-section-hatching" type="checkbox"><span>Section hatching</span></label><label><input id="overlay-projection-lines" type="checkbox"><span>Projection lines</span></label><label><input id="overlay-axes" type="checkbox"><span>Origin axes</span></label><label><input id="overlay-bounds" type="checkbox"><span>Bounding box</span></label></fieldset><p class="settings-note">Display style is one choice. Drawing overlays can be combined.</p></div>
         <p class="shortcut-note">Fusion-style shortcuts: number keys set standard views, <kbd>H</kbd> returns home, <kbd>O</kbd> switches projection, <kbd>F</kbd> fits, and <kbd>X</kbd> toggles the section plane.</p>
@@ -109,6 +109,9 @@ function createViewer(stlBlob) {
   const controls = new OrbitControls(activeCamera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
+  const faceRaycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  let pointerStart = null;
   const sectionPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
   let sectionAxis = 'x';
   let displayMode = 'shaded';
@@ -185,13 +188,16 @@ function createViewer(stlBlob) {
     const { center, radius } = sceneState;
     const d = radius * 2.4;
     const positions = { front: [0, 0, d], back: [0, 0, -d], top: [0, d, 0], bottom: [0, -d, 0], left: [-d, 0, 0], right: [d, 0, 0] };
-    activeCamera.position.set(center.x + positions[view][0], center.y + positions[view][1], center.z + positions[view][2]);
+    const position = positions[view];
+    if (!position) return;
+    activeCamera.position.set(center.x + position[0], center.y + position[1], center.z + position[2]);
     activeCamera.up.set(0, 1, 0);
     if (view === 'top' || view === 'bottom') activeCamera.up.set(0, 0, view === 'top' ? -1 : 1);
     controls.target.copy(center);
     activeCamera.lookAt(center);
     activeCamera.updateProjectionMatrix();
     controls.update();
+    section.querySelectorAll('[data-view]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.view === view)));
   }
   function rotateView(degrees) {
     if (!sceneState) return;
@@ -200,6 +206,21 @@ function createViewer(stlBlob) {
     activeCamera.lookAt(controls.target);
     activeCamera.updateProjectionMatrix();
     controls.update();
+  }
+  function alignToFace(intersection) {
+    if (!sceneState || !intersection.face) return;
+    const { center, radius, mesh } = sceneState;
+    const normal = intersection.face.normal.clone().transformDirection(mesh.matrixWorld).normalize();
+    if (normal.dot(activeCamera.position.clone().sub(intersection.point)) < 0) normal.negate();
+    activeCamera.position.copy(center).addScaledVector(normal, radius * 2.4);
+    const up = new THREE.Vector3(0, 1, 0);
+    if (Math.abs(up.dot(normal)) > 0.9) up.set(0, 0, 1);
+    activeCamera.up.copy(up);
+    controls.target.copy(center);
+    activeCamera.lookAt(center);
+    activeCamera.updateProjectionMatrix();
+    controls.update();
+    section.querySelectorAll('[data-view]').forEach((button) => button.setAttribute('aria-pressed', 'false'));
   }
   function detectCircularFeatures(geometry, size) {
     const positions = geometry.attributes.position;
@@ -404,6 +425,24 @@ function createViewer(stlBlob) {
     section.querySelectorAll('[data-section-axis]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.sectionAxis === axis)));
     updateSection();
   }
+  section.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', (event) => {
+    event.preventDefault();
+    setView(button.dataset.view);
+  }));
+  renderer.domElement.addEventListener('pointerdown', (event) => {
+    pointerStart = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+  });
+  renderer.domElement.addEventListener('pointerup', (event) => {
+    if (!pointerStart || event.button !== 0) return;
+    const moved = Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y);
+    pointerStart = null;
+    if (moved > 5 || !sceneState) return;
+    const bounds = renderer.domElement.getBoundingClientRect();
+    pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
+    faceRaycaster.setFromCamera(pointer, activeCamera);
+    const intersection = faceRaycaster.intersectObject(sceneState.mesh, false)[0];
+    if (intersection) alignToFace(intersection);
+  });
   section.querySelector('#section-side').addEventListener('click', toggleSectionSide);
   section.querySelectorAll('[data-section-axis]').forEach((button) => button.addEventListener('click', () => setSectionAxis(button.dataset.sectionAxis)));
   section.querySelectorAll('input[name="display-mode"]').forEach((input) => input.addEventListener('change', () => applyDisplayMode(input.value)));
