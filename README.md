@@ -34,9 +34,15 @@ The generated STL is shown in an interactive viewer before download:
 - `O`: switch orthographic and perspective projection
 - `F`: fit the model
 - `X`: toggle the cross-section plane
+- `[` / `]`: rotate the current view left/right by 90°
+- `R`: flip the current view by 180°
 - Drag to orbit, scroll to zoom, right-drag to pan
 
-The section controls let you choose the `YZ`, `XZ`, or `XY` plane and move it through the model. Mechanical drawing settings provide mutually exclusive `Shaded`, `Shaded + outlines`, `Wireframe`, and `Hidden lines` styles. Independent overlay checkboxes enable center lines, center marks, section hatching, projection lines, origin axes, and the bounding box. These are inspection aids generated from the tessellated mesh, not dimensionally annotated drafting views. STL has no units, so confirm scale in the slicer before printing.
+The section controls let you choose the `YZ`, `XZ`, or `XY` plane, move it through the model, and flip between the high and low side of the cut. Section hatching is generated as uniform 45° inspection lines. The theme toggle switches between light and dark UI themes.
+
+Mechanical drawing settings provide mutually exclusive `Shaded`, `Shaded + outlines`, `Wireframe`, and `Hidden lines` styles. Hidden lines use mesh sharp-edge filtering plus depth testing so occluded edges are dashed instead of every triangulation edge being shown. Independent overlay checkboxes enable center lines, center marks, section hatching, projection lines, origin axes, and the bounding box.
+
+Center-line and center-mark overlays use a heuristic circular-feature estimator. It fits circles to well-supported polygon vertex rings in the three principal planes; it cannot prove CAD intent or reliably identify every hole from an arbitrary STL. These are inspection aids generated from the tessellated mesh, not dimensionally annotated drafting views. STL has no units, so confirm scale in the slicer before printing.
 
 ## Implementation
 

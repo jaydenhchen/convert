@@ -20,6 +20,7 @@
         <p class="eyebrow">MECHANICAL WORKFLOW</p>
         <h1>Turn a 3D PDF into an STL.</h1>
         <p class="lede">Extract the actual PRC surface geometry from an Acrobat 3D PDF. No screenshot tracing. No rectangular-prism fallback.</p>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false">Dark theme</button>
       </section>
 
       <section class="card" aria-labelledby="upload-heading">
@@ -32,7 +33,7 @@
         </div>
         <form id="convert-form">
           <label class="drop-zone" id="drop-zone" for="file-input">
-            <input id="file-input" name="file" type="file" accept="application/pdf,.pdf" required>
+            <input id="file-input" name="file" type="file" accept="application/pdf,.pdf">
             <span class="upload-icon" aria-hidden="true">↥</span>
             <span class="drop-title">Drop a 3D PDF here</span>
             <span class="drop-subtitle">or click to browse · up to 100 MB</span>
