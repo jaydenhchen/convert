@@ -47,7 +47,13 @@ const vendorFiles = {
   '/vendor/three.module.js': join(threeDir, 'build', 'three.module.js'),
   '/vendor/three.core.js': join(threeDir, 'build', 'three.core.js'),
   '/vendor/controls/OrbitControls.js': join(threeDir, 'examples', 'jsm', 'controls', 'OrbitControls.js'),
-  '/vendor/loaders/STLLoader.js': join(threeDir, 'examples', 'jsm', 'loaders', 'STLLoader.js')
+  '/vendor/loaders/STLLoader.js': join(threeDir, 'examples', 'jsm', 'loaders', 'STLLoader.js'),
+  '/vendor/loaders/OBJLoader.js': join(threeDir, 'examples', 'jsm', 'loaders', 'OBJLoader.js'),
+  '/vendor/loaders/PLYLoader.js': join(threeDir, 'examples', 'jsm', 'loaders', 'PLYLoader.js'),
+  '/vendor/loaders/GLTFLoader.js': join(threeDir, 'examples', 'jsm', 'loaders', 'GLTFLoader.js'),
+  '/vendor/loaders/3MFLoader.js': join(threeDir, 'examples', 'jsm', 'loaders', '3MFLoader.js'),
+  '/vendor/libs/fflate.module.js': join(threeDir, 'examples', 'jsm', 'libs', 'fflate.module.js'),
+  '/vendor/utils/BufferGeometryUtils.js': join(threeDir, 'examples', 'jsm', 'utils', 'BufferGeometryUtils.js')
 };
 
 const server = createServer(async (request, response) => {
