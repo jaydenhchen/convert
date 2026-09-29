@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>3D PDF to STL</title>
+    <title>3D Model to STL</title>
     <link rel="stylesheet" href="/styles.css">
     <script type="importmap">
       {
@@ -18,8 +18,8 @@
     <main class="shell">
       <section class="hero">
         <p class="eyebrow">MECHANICAL WORKFLOW</p>
-        <h1>Turn a 3D PDF into an STL.</h1>
-        <p class="lede">Extract the actual PRC surface geometry from an Acrobat 3D PDF. No screenshot tracing. No rectangular-prism fallback.</p>
+        <h1>Convert 3D models to STL.</h1>
+        <p class="lede">Convert 3D PDFs and common mesh formats into binary STL. No screenshot tracing. No rectangular-prism fallback.</p>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false">Dark theme</button>
       </section>
 
@@ -27,16 +27,16 @@
         <div class="card-heading">
           <div>
             <p class="eyebrow">CONVERTER</p>
-            <h2 id="upload-heading">Upload your 3D PDF</h2>
+            <h2 id="upload-heading">Upload a 3D model</h2>
           </div>
-          <span class="format-pill">PDF → STL</span>
+          <span class="format-pill">3D → STL</span>
         </div>
         <form id="convert-form">
           <label class="drop-zone" id="drop-zone" for="file-input">
-            <input id="file-input" name="file" type="file" accept="application/pdf,.pdf">
+            <input id="file-input" name="file" type="file" accept="application/pdf,.pdf,.stl,.obj,.ply,.off,.glb,.gltf,.3mf">
             <span class="upload-icon" aria-hidden="true">↥</span>
-            <span class="drop-title">Drop a 3D PDF here</span>
-            <span class="drop-subtitle">or click to browse · up to 100 MB</span>
+            <span class="drop-title">Drop a 3D model here</span>
+            <span class="drop-subtitle">PDF, STL, OBJ, PLY, OFF, GLB, GLTF, or 3MF · up to 100 MB</span>
             <span class="file-name" id="file-name">No file selected</span>
           </label>
           <button class="button" id="submit-button" type="submit" disabled>Convert to STL <span aria-hidden="true">→</span></button>

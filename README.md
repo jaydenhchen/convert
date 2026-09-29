@@ -1,6 +1,6 @@
-# 3D PDF to STL
+# 3D Model to STL
 
-A local web converter for Acrobat 3D PDFs that contain an embedded PRC model. It extracts the PRC stream, converts the tessellated surface to GLB, and writes a binary STL without reducing the object to the PDF page rectangle.
+A local web converter for PRC-based 3D PDFs and common triangle-mesh formats. It writes binary STL without reducing the object to the PDF page rectangle or a fallback primitive.
 
 ## Run locally
 
@@ -9,7 +9,7 @@ npm install
 npm start
 ```
 
-Open <http://localhost:3000> and upload a PRC-based 3D PDF. The server keeps the upload in memory for the conversion; it does not write uploaded PDFs to disk.
+Open <http://localhost:3000> and upload a PRC-based 3D PDF or a supported mesh file. PDF conversion uses the server locally and mesh conversion runs in the browser; neither path writes uploaded models to disk.
 
 ## GitHub Pages
 
@@ -21,7 +21,7 @@ npm run build:pages
 
 The included `.github/workflows/deploy-pages.yml` workflow publishes the generated `dist` directory. GitHub Pages cannot run the Node upload server, so the Pages build uses the browser WebAssembly converter instead.
 
-The current upload limit is 100 MB. The input must be a real 3D PDF with a `/Subtype /PRC` 3D stream, such as the supplied SolidWorks/Acrobat file. Ordinary 2D PDFs and 3D PDFs using U3D are rejected with an explanation rather than producing a fake box.
+The current upload limit is 100 MB. Supported mesh inputs are STL, OBJ, PLY, OFF, GLB, embedded-data GLTF, and 3MF. STEP, IGES, Parasolid, and other CAD B-rep formats are not supported yet and require a CAD kernel such as Open Cascade.
 
 ## Viewer controls
 
@@ -47,6 +47,6 @@ Center-line and center-mark overlays use a heuristic circular-feature estimator.
 
 ## Implementation
 
-- `server.mjs`: upload API and static web server
 - `converter.mjs`: PDF PRC extraction, PRC→GLB conversion, GLB triangle traversal, binary STL writing
+- `public/mesh-converter.js`: browser-side mesh loading, transform application, triangulation, and binary STL writing
 - `public/app.js`: upload flow and Three.js viewer

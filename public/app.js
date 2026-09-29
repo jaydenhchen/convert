@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { buildSectionCapGeometry } from './section-cap.js';
+import { MESH_EXTENSIONS, convertMeshToStl, isSupportedMeshFile } from './mesh-converter.js';
 
 const form = document.querySelector('#convert-form');
 const input = document.querySelector('#file-input');
@@ -30,11 +31,12 @@ function setStatus(message, kind = '') {
 
 function chooseFile(file) {
   if (!file) return;
-  if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+  const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+  if (!isPdf && !isSupportedMeshFile(file)) {
     selectedFile = null;
     submitButton.disabled = true;
-    fileName.textContent = 'Please choose a PDF file';
-    setStatus('This converter accepts PDF files containing an embedded PRC 3D model.', 'error');
+    fileName.textContent = 'Unsupported file format';
+    setStatus(`Supported formats: PDF, ${MESH_EXTENSIONS.map((extension) => extension.slice(1).toUpperCase()).join(', ')}.`, 'error');
     return;
   }
   selectedFile = file;
@@ -491,7 +493,11 @@ function createViewer(stlBlob) {
   animate();
 }
 
-async function convertSelectedPdf(file) {
+async function convertSelectedFile(file) {
+  if (isSupportedMeshFile(file)) {
+    const result = await convertMeshToStl(file);
+    return { stlBlob: new Blob([result.stl], { type: 'model/stl' }), triangleCount: result.triangleCount };
+  }
   if (typeof __STATIC_SITE__ !== 'undefined' && __STATIC_SITE__) {
     const { convertPdfToStl } = await import('./browser-converter.js');
     const result = await convertPdfToStl(await file.arrayBuffer());
@@ -509,9 +515,9 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!selectedFile) return;
   submitButton.disabled = true;
-  setStatus('Extracting the embedded 3D surface…');
+  setStatus(isSupportedMeshFile(selectedFile) ? 'Reading the 3D mesh…' : 'Extracting the embedded 3D surface…');
   try {
-    const { stlBlob, triangleCount } = await convertSelectedPdf(selectedFile);
+    const { stlBlob, triangleCount } = await convertSelectedFile(selectedFile);
     setStatus(`Done · ${triangleCount.toLocaleString()} triangles.`, 'success');
     createViewer(stlBlob);
     document.querySelector('#viewer-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
