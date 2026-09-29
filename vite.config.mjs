@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   root: resolve(import.meta.dirname, 'public'),
+  base: './',
   publicDir: false,
   define: { __STATIC_SITE__: true },
   build: {
