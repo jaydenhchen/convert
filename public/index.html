@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>3D PDF to STL</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/vendor/three.module.js",
+          "three/addons/": "/vendor/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">MECHANICAL WORKFLOW</p>
+        <h1>Turn a 3D PDF into an STL.</h1>
+        <p class="lede">Extract the actual PRC surface geometry from an Acrobat 3D PDF. No screenshot tracing. No rectangular-prism fallback.</p>
+      </section>
+
+      <section class="card" aria-labelledby="upload-heading">
+        <div class="card-heading">
+          <div>
+            <p class="eyebrow">CONVERTER</p>
+            <h2 id="upload-heading">Upload your 3D PDF</h2>
+          </div>
+          <span class="format-pill">PDF → STL</span>
+        </div>
+        <form id="convert-form">
+          <label class="drop-zone" id="drop-zone" for="file-input">
+            <input id="file-input" name="file" type="file" accept="application/pdf,.pdf" required>
+            <span class="upload-icon" aria-hidden="true">↥</span>
+            <span class="drop-title">Drop a 3D PDF here</span>
+            <span class="drop-subtitle">or click to browse · up to 100 MB</span>
+            <span class="file-name" id="file-name">No file selected</span>
+          </label>
+          <button class="button" id="submit-button" type="submit" disabled>Convert to STL <span aria-hidden="true">→</span></button>
+        </form>
+        <div class="status" id="status" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="notes" aria-label="Compatibility notes">
+        <article>
+          <span class="note-number">01</span>
+          <div><h3>Geometry-first</h3><p>Uses the embedded PRC model, preserving curved and irregular mechanical surfaces.</p></div>
+        </article>
+        <article>
+          <span class="note-number">02</span>
+          <div><h3>3D PDFs</h3><p>Works with PRC-based 3D PDFs exported by CAD tools such as SolidWorks.</p></div>
+        </article>
+        <article>
+          <span class="note-number">03</span>
+          <div><h3>Print-ready mesh</h3><p>Returns binary STL triangles. STL is unitless; confirm scale in your slicer before printing.</p></div>
+        </article>
+      </section>
+      <p class="footer-note">Your file is processed by this server and is not stored after conversion.</p>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
