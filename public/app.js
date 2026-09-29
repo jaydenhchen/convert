@@ -8,8 +8,19 @@ const dropZone = document.querySelector('#drop-zone');
 const fileName = document.querySelector('#file-name');
 const submitButton = document.querySelector('#submit-button');
 const status = document.querySelector('#status');
+const themeToggle = document.querySelector('#theme-toggle');
 let selectedFile = null;
 let sceneState = null;
+
+function setTheme(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  themeToggle.setAttribute('aria-pressed', String(dark));
+  themeToggle.textContent = dark ? 'Light theme' : 'Dark theme';
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+}
+
+setTheme(localStorage.getItem('theme') === 'dark');
+themeToggle.addEventListener('click', () => setTheme(document.documentElement.dataset.theme !== 'dark'));
 
 function setStatus(message, kind = '') {
   status.textContent = message;
@@ -64,8 +75,8 @@ function createViewer(stlBlob) {
     <div class="viewer-layout">
       <div class="viewport" id="viewport"><div class="viewer-help">Drag to orbit · scroll to zoom · right-drag to pan</div></div>
       <aside class="viewer-controls">
-        <div class="control-group"><h3>Camera</h3><div class="view-grid"><button data-view="front">Front <kbd>1</kbd></button><button data-view="back">Back <kbd>2</kbd></button><button data-view="top">Top <kbd>3</kbd></button><button data-view="bottom">Bottom <kbd>4</kbd></button><button data-view="left">Left <kbd>5</kbd></button><button data-view="right">Right <kbd>6</kbd></button></div><button class="control-wide" id="home-button">Home view <kbd>H</kbd></button><button class="control-wide" id="projection-button">Perspective <kbd>O</kbd></button><button class="control-wide" id="fit-button">Fit model <kbd>F</kbd></button></div>
-        <div class="control-group"><h3>Section</h3><label class="toggle-row"><input id="section-toggle" type="checkbox"><span>Toggle cross section <kbd>X</kbd></span></label><div class="axis-control"><span class="axis-label">Plane orientation</span><div class="axis-grid" role="group" aria-label="Cross-section plane orientation"><button type="button" data-section-axis="x" aria-pressed="true">YZ <small>normal X</small></button><button type="button" data-section-axis="y" aria-pressed="false">XZ <small>normal Y</small></button><button type="button" data-section-axis="z" aria-pressed="false">XY <small>normal Z</small></button></div></div><label class="range-row" for="section-range">Cut position <output id="section-value">YZ · 50%</output><input id="section-range" type="range" min="0" max="100" value="50" disabled></label></div>
+        <div class="control-group"><h3>Camera</h3><div class="view-grid"><button data-view="front">Front <kbd>1</kbd></button><button data-view="back">Back <kbd>2</kbd></button><button data-view="top">Top <kbd>3</kbd></button><button data-view="bottom">Bottom <kbd>4</kbd></button><button data-view="left">Left <kbd>5</kbd></button><button data-view="right">Right <kbd>6</kbd></button></div><button class="control-wide" id="home-button">Home view <kbd>H</kbd></button><div class="rotation-grid"><button type="button" id="rotate-left">Rotate left <kbd>[</kbd></button><button type="button" id="rotate-right">Rotate right <kbd>]</kbd></button><button type="button" id="flip-view">Flip 180° <kbd>R</kbd></button></div><button class="control-wide" id="projection-button">Perspective <kbd>O</kbd></button><button class="control-wide" id="fit-button">Fit model <kbd>F</kbd></button></div>
+        <div class="control-group"><h3>Section</h3><label class="toggle-row"><input id="section-toggle" type="checkbox"><span>Toggle cross section <kbd>X</kbd></span></label><div class="axis-control"><span class="axis-label">Plane orientation</span><div class="axis-grid" role="group" aria-label="Cross-section plane orientation"><button type="button" data-section-axis="x" aria-pressed="true">YZ <small>normal X</small></button><button type="button" data-section-axis="y" aria-pressed="false">XZ <small>normal Y</small></button><button type="button" data-section-axis="z" aria-pressed="false">XY <small>normal Z</small></button></div></div><label class="range-row" for="section-range">Cut position <output id="section-value">YZ · 50%</output><input id="section-range" type="range" min="0" max="100" value="50" disabled></label><button class="control-wide" id="section-side" type="button">Showing high side</button></div>
         <div class="control-group"><h3>Mechanical drawing</h3><fieldset class="mode-options"><legend>Display style</legend><label><input type="radio" name="display-mode" value="shaded" checked><span>Shaded</span></label><label><input type="radio" name="display-mode" value="outlined"><span>Shaded + outlines</span></label><label><input type="radio" name="display-mode" value="wireframe"><span>Wireframe</span></label><label><input type="radio" name="display-mode" value="hidden"><span>Hidden lines</span></label></fieldset><fieldset class="check-options"><legend>Drawing overlays</legend><label><input id="overlay-center-lines" type="checkbox"><span>Center lines</span></label><label><input id="overlay-center-marks" type="checkbox"><span>Center marks</span></label><label><input id="overlay-section-hatching" type="checkbox"><span>Section hatching</span></label><label><input id="overlay-projection-lines" type="checkbox"><span>Projection lines</span></label><label><input id="overlay-axes" type="checkbox"><span>Origin axes</span></label><label><input id="overlay-bounds" type="checkbox"><span>Bounding box</span></label></fieldset><p class="settings-note">Display style is one choice. Drawing overlays can be combined.</p></div>
         <p class="shortcut-note">Fusion-style shortcuts: number keys set standard views, <kbd>H</kbd> returns home, <kbd>O</kbd> switches projection, <kbd>F</kbd> fits, and <kbd>X</kbd> toggles the section plane.</p>
       </aside>
@@ -101,6 +112,7 @@ function createViewer(stlBlob) {
   const sectionPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
   let sectionAxis = 'x';
   let displayMode = 'shaded';
+  let sectionSide = 1;
   const loader = new STLLoader();
   stlBlob.arrayBuffer().then((buffer) => {
     const geometry = loader.parse(buffer);
@@ -115,9 +127,9 @@ function createViewer(stlBlob) {
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
     const radius = Math.max(size.length() / 2, 0.01);
-    const edgeGeometry = new THREE.EdgesGeometry(geometry, 1);
+    const edgeGeometry = new THREE.EdgesGeometry(geometry, 15);
     const outlineLines = new THREE.LineSegments(edgeGeometry, new THREE.LineBasicMaterial({ color: 0x14251c }));
-    const hiddenLines = new THREE.LineSegments(edgeGeometry, new THREE.LineDashedMaterial({ color: 0xd5f36c, dashSize: radius * 0.035, gapSize: radius * 0.025, transparent: true, opacity: 0.8, depthTest: false, depthWrite: false }));
+    const hiddenLines = new THREE.LineSegments(edgeGeometry, new THREE.LineDashedMaterial({ color: 0xd5f36c, dashSize: radius * 0.035, gapSize: radius * 0.025, transparent: true, opacity: 0.85, depthTest: true, depthFunc: THREE.GreaterDepth, depthWrite: false }));
     hiddenLines.computeLineDistances();
     const centerLineGroup = new THREE.Group();
     const centerMarkGroup = new THREE.Group();
@@ -129,7 +141,7 @@ function createViewer(stlBlob) {
     scene.add(outlineLines, hiddenLines, centerLineGroup, centerMarkGroup, hatchGroup, projectionGroup, axesHelper, boxHelper);
     grid.scale.setScalar(Math.max(radius / 20, 0.01));
     grid.position.y = box.min.y;
-    sceneState = { mesh, box, center, size, radius, material, sectionPlane, outlineLines, hiddenLines, centerLineGroup, centerMarkGroup, hatchGroup, projectionGroup, axesHelper, boxHelper };
+    sceneState = { mesh, geometry, box, center, size, radius, material, sectionPlane, outlineLines, hiddenLines, centerLineGroup, centerMarkGroup, hatchGroup, projectionGroup, axesHelper, boxHelper };
     buildDrawingOverlays();
     applyDisplayMode(displayMode);
     updateOverlays();
@@ -142,11 +154,11 @@ function createViewer(stlBlob) {
     renderer.setSize(width, height, false);
     perspective.aspect = width / height;
     perspective.updateProjectionMatrix();
-    orthographic.left = -width / height;
-    orthographic.right = width / height;
-    orthographic.top = 1;
-    orthographic.bottom = -1;
-    orthographic.updateProjectionMatrix();
+    const viewHeight = sceneState ? sceneState.radius * 1.35 : 1;
+    orthographic.left = -viewHeight * width / height;
+    orthographic.right = viewHeight * width / height;
+    orthographic.top = viewHeight;
+    orthographic.bottom = -viewHeight;
   }
   function fitCamera() {
     if (!sceneState) return;
@@ -181,8 +193,82 @@ function createViewer(stlBlob) {
     activeCamera.updateProjectionMatrix();
     controls.update();
   }
+  function rotateView(degrees) {
+    if (!sceneState) return;
+    const direction = controls.target.clone().sub(activeCamera.position).normalize();
+    activeCamera.up.applyAxisAngle(direction, THREE.MathUtils.degToRad(degrees)).normalize();
+    activeCamera.lookAt(controls.target);
+    activeCamera.updateProjectionMatrix();
+    controls.update();
+  }
+  function detectCircularFeatures(geometry, size) {
+    const positions = geometry.attributes.position;
+    const extent = Math.max(size.x, size.y, size.z);
+    const quantization = Math.max(extent * 0.0005, 1e-7);
+    const unique = new Map();
+    const point = new THREE.Vector3();
+    for (let index = 0; index < positions.count; index += 1) {
+      point.fromBufferAttribute(positions, index);
+      const key = `${Math.round(point.x / quantization)},${Math.round(point.y / quantization)},${Math.round(point.z / quantization)}`;
+      if (!unique.has(key)) unique.set(key, point.clone());
+    }
+    const axes = [[0, 1, 2], [0, 2, 1], [1, 2, 0]];
+    const features = [];
+    for (const [u, v, axis] of axes) {
+      const projected = [...unique.values()].map((value) => ({ u: value.getComponent(u), v: value.getComponent(v), normal: value.getComponent(axis) }));
+      const stride = Math.max(1, Math.ceil(projected.length / 64));
+      const sample = projected.filter((_, index) => index % stride === 0);
+      const tolerance = Math.max(extent * 0.012, 1e-5);
+      const minimumRadius = Math.max(Math.min(size.getComponent(u), size.getComponent(v)) * 0.025, tolerance * 2);
+      const maximumRadius = Math.max(size.getComponent(u), size.getComponent(v)) * 0.48;
+      const minimumSupport = Math.max(10, Math.ceil(projected.length * 0.06));
+      const candidates = [];
+      for (let first = 0; first < sample.length - 2; first += 1) {
+        for (let second = first + 1; second < sample.length - 1; second += 1) {
+          for (let third = second + 1; third < sample.length; third += 1) {
+            const a = sample[first];
+            const b = sample[second];
+            const c = sample[third];
+            const denominator = 2 * (a.u * (b.v - c.v) + b.u * (c.v - a.v) + c.u * (a.v - b.v));
+            if (Math.abs(denominator) < 1e-8) continue;
+            const aa = a.u * a.u + a.v * a.v;
+            const bb = b.u * b.u + b.v * b.v;
+            const cc = c.u * c.u + c.v * c.v;
+            const centerU = (aa * (b.v - c.v) + bb * (c.v - a.v) + cc * (a.v - b.v)) / denominator;
+            const centerV = (aa * (c.u - b.u) + bb * (a.u - c.u) + cc * (b.u - a.u)) / denominator;
+            const candidateRadius = Math.hypot(a.u - centerU, a.v - centerV);
+            if (candidateRadius < minimumRadius || candidateRadius > maximumRadius) continue;
+            const bins = new Set();
+            let support = 0;
+            let error = 0;
+            let normalTotal = 0;
+            for (const candidate of projected) {
+              const distance = Math.hypot(candidate.u - centerU, candidate.v - centerV);
+              const radialError = Math.abs(distance - candidateRadius);
+              if (radialError > tolerance) continue;
+              support += 1;
+              error += radialError;
+              normalTotal += candidate.normal;
+              bins.add(Math.floor((Math.atan2(candidate.v - centerV, candidate.u - centerU) + Math.PI) * 12 / Math.PI) % 24);
+            }
+            const coverage = bins.size / 24;
+            if (support < minimumSupport || coverage < 0.45) continue;
+            candidates.push({ axis, u, v, centerU, centerV, normal: normalTotal / support, radius: candidateRadius, score: support * coverage / (1 + error / support / tolerance) });
+          }
+        }
+      }
+      candidates.sort((a, b) => b.score - a.score);
+      for (const candidate of candidates) {
+        if (features.some((feature) => feature.axis === candidate.axis && Math.hypot(feature.centerU - candidate.centerU, feature.centerV - candidate.centerV) < tolerance * 2 && Math.abs(feature.radius - candidate.radius) < tolerance * 3)) continue;
+        features.push(candidate);
+        if (features.filter((feature) => feature.axis === axis).length >= 3) break;
+      }
+    }
+    return features;
+  }
+
   function buildDrawingOverlays() {
-    const { box, center, size, radius, centerLineGroup, centerMarkGroup, projectionGroup } = sceneState;
+    const { box, center, size, radius, geometry, centerLineGroup, centerMarkGroup, projectionGroup } = sceneState;
     const centerLineMaterial = new THREE.LineDashedMaterial({ color: 0xd5f36c, dashSize: radius * 0.08, gapSize: radius * 0.035, transparent: true, opacity: 0.9, depthTest: false });
     for (let axis = 0; axis < 3; axis += 1) {
       const start = center.clone().setComponent(axis, box.min.getComponent(axis));
@@ -196,42 +282,58 @@ function createViewer(stlBlob) {
       projectionGroup.add(projection);
     }
     const markMaterial = new THREE.LineBasicMaterial({ color: 0xd5f36c, transparent: true, opacity: 0.95, depthTest: false });
-    const markRadius = Math.max(Math.min(size.x, size.y, size.z) * 0.12, radius * 0.018);
-    const addCenterMark = (axisA, axisB, fixedAxis) => {
-      const points = [];
+    const circleFeatures = detectCircularFeatures(geometry, size);
+    for (const feature of circleFeatures) {
+      const makePoint = (uOffset, vOffset) => center.clone().setComponent(feature.u, feature.centerU + uOffset).setComponent(feature.v, feature.centerV + vOffset).setComponent(feature.axis, feature.normal);
+      const circlePoints = [];
       for (let i = 0; i < 32; i += 1) {
         const angle = (i / 32) * Math.PI * 2;
-        points.push(center.clone().setComponent(axisA, center.getComponent(axisA) + Math.cos(angle) * markRadius).setComponent(axisB, center.getComponent(axisB) + Math.sin(angle) * markRadius));
+        circlePoints.push(makePoint(Math.cos(angle) * feature.radius, Math.sin(angle) * feature.radius));
       }
-      const ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), markMaterial);
-      centerMarkGroup.add(ring);
+      centerMarkGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(circlePoints), markMaterial));
+      const crossRadius = feature.radius * 1.35;
       const cross = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
-        center.clone().setComponent(axisA, center.getComponent(axisA) - markRadius * 1.3),
-        center.clone().setComponent(axisA, center.getComponent(axisA) + markRadius * 1.3),
-        center.clone().setComponent(axisB, center.getComponent(axisB) - markRadius * 1.3),
-        center.clone().setComponent(axisB, center.getComponent(axisB) + markRadius * 1.3)
-      ]), markMaterial);
-      centerMarkGroup.add(cross);
-    };
-    addCenterMark(0, 1, 2);
-    addCenterMark(0, 2, 1);
-    addCenterMark(1, 2, 0);
+        makePoint(-crossRadius, 0), makePoint(crossRadius, 0),
+        makePoint(0, -crossRadius), makePoint(0, crossRadius)
+      ]), centerLineMaterial);
+      cross.computeLineDistances();
+      centerLineGroup.add(cross);
+    }
+    if (!circleFeatures.length) {
+      const markRadius = Math.max(Math.min(size.x, size.y, size.z) * 0.12, radius * 0.018);
+      for (const [axisA, axisB] of [[0, 1], [0, 2], [1, 2]]) {
+        const points = [];
+        for (let i = 0; i < 32; i += 1) {
+          const angle = (i / 32) * Math.PI * 2;
+          points.push(center.clone().setComponent(axisA, center.getComponent(axisA) + Math.cos(angle) * markRadius).setComponent(axisB, center.getComponent(axisB) + Math.sin(angle) * markRadius));
+        }
+        centerMarkGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), markMaterial));
+      }
+    }
   }
-
   function updateHatching() {
     if (!sceneState) return;
     sceneState.hatchGroup.clear();
-    const { box, center, size, radius } = sceneState;
+    const { box, center, size } = sceneState;
     const axis = { x: 0, y: 1, z: 2 }[sectionAxis];
     const planeAxes = [0, 1, 2].filter((value) => value !== axis);
     const [u, v] = planeAxes;
-    const coordinate = -sectionPlane.constant;
+    const percent = Number(section.querySelector('#section-range').value);
+    const coordinate = box.min.getComponent(axis) + size.getComponent(axis) * percent / 100;
+    const uSize = size.getComponent(u);
+    const vSize = size.getComponent(v);
+    const spacing = Math.max(Math.min(uSize, vSize) * 0.14, 1e-4);
     const points = [];
-    for (let i = 0; i <= 20; i += 1) {
-      const t = i / 20;
-      const first = center.clone().setComponent(axis, coordinate).setComponent(u, box.min.getComponent(u) + t * size.getComponent(u)).setComponent(v, box.min.getComponent(v));
-      const second = center.clone().setComponent(axis, coordinate).setComponent(u, box.min.getComponent(u) + Math.max(0, t - 0.35) * size.getComponent(u)).setComponent(v, box.max.getComponent(v));
-      points.push(first, second);
+    for (let offset = -vSize; offset <= uSize; offset += spacing) {
+      const startU = box.min.getComponent(u) + Math.max(0, offset);
+      const startV = box.min.getComponent(v) + Math.max(0, -offset);
+      const endU = box.min.getComponent(u) + Math.min(uSize, offset + vSize);
+      const endV = box.min.getComponent(v) + Math.min(vSize, uSize - offset);
+      if (endU <= startU || endV <= startV) continue;
+      points.push(
+        center.clone().setComponent(axis, coordinate).setComponent(u, startU).setComponent(v, startV),
+        center.clone().setComponent(axis, coordinate).setComponent(u, endU).setComponent(v, endV)
+      );
     }
     const material = new THREE.LineBasicMaterial({ color: 0xc9d6cd, transparent: true, opacity: 0.42, depthTest: false });
     sceneState.hatchGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), material));
@@ -271,6 +373,7 @@ function createViewer(stlBlob) {
     resize();
     fitCamera();
   }
+
   function toggleSection(enabled) {
     if (!sceneState) return;
     sceneState.material.clippingPlanes = enabled ? [sectionPlane] : [];
@@ -278,14 +381,21 @@ function createViewer(stlBlob) {
     updateSection();
     updateOverlays();
   }
+
+  function toggleSectionSide() {
+    sectionSide *= -1;
+    section.querySelector('#section-side').textContent = sectionSide > 0 ? 'Showing high side' : 'Showing low side';
+    updateSection();
+  }
+
   function updateSection() {
     if (!sceneState) return;
     const percent = Number(section.querySelector('#section-range').value);
     const axisIndex = { x: 0, y: 1, z: 2 }[sectionAxis];
     const planeLabel = { x: 'YZ', y: 'XZ', z: 'XY' }[sectionAxis];
     const coordinate = sceneState.box.min.getComponent(axisIndex) + sceneState.size.getComponent(axisIndex) * percent / 100;
-    sectionPlane.normal.set(0, 0, 0).setComponent(axisIndex, 1);
-    sectionPlane.constant = -coordinate;
+    sectionPlane.normal.set(0, 0, 0).setComponent(axisIndex, sectionSide);
+    sectionPlane.constant = -sectionSide * coordinate;
     section.querySelector('#section-value').value = `${planeLabel} · ${percent}%`;
     updateHatching();
   }
@@ -294,11 +404,16 @@ function createViewer(stlBlob) {
     section.querySelectorAll('[data-section-axis]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.sectionAxis === axis)));
     updateSection();
   }
+  section.querySelector('#section-side').addEventListener('click', toggleSectionSide);
   section.querySelectorAll('[data-section-axis]').forEach((button) => button.addEventListener('click', () => setSectionAxis(button.dataset.sectionAxis)));
   section.querySelectorAll('input[name="display-mode"]').forEach((input) => input.addEventListener('change', () => applyDisplayMode(input.value)));
   ['overlay-center-lines', 'overlay-center-marks', 'overlay-section-hatching', 'overlay-projection-lines', 'overlay-axes', 'overlay-bounds'].forEach((id) => section.querySelector(`#${id}`).addEventListener('change', updateOverlays));
   section.querySelector('#home-button').addEventListener('click', fitCamera);
+  section.querySelector('#rotate-left').addEventListener('click', () => rotateView(-90));
+  section.querySelector('#rotate-right').addEventListener('click', () => rotateView(90));
+  section.querySelector('#flip-view').addEventListener('click', () => rotateView(180));
   section.querySelector('#projection-button').addEventListener('click', toggleProjection);
+  section.querySelector('#fit-button').addEventListener('click', fitCamera);
   section.querySelector('#section-toggle').addEventListener('change', (event) => toggleSection(event.target.checked));
   section.querySelector('#section-range').addEventListener('input', updateSection);
   section.querySelector('#download-button').addEventListener('click', () => downloadBlob(stlBlob, 'converted-model.stl'));
@@ -307,6 +422,9 @@ function createViewer(stlBlob) {
     if (event.target.matches('input[type="range"], textarea, select')) return;
     const views = { '1': 'front', '2': 'back', '3': 'top', '4': 'bottom', '5': 'left', '6': 'right' };
     if (views[event.key]) setView(views[event.key]);
+    else if (event.key === '[') rotateView(-90);
+    else if (event.key === ']') rotateView(90);
+    else if (event.key.toLowerCase() === 'r') rotateView(180);
     else if (event.key.toLowerCase() === 'f') fitCamera();
     else if (event.key.toLowerCase() === 'h') fitCamera();
     else if (event.key.toLowerCase() === 'x') { const toggle = section.querySelector('#section-toggle'); toggle.checked = !toggle.checked; toggleSection(toggle.checked); }
