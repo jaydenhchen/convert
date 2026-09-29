@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { buildSectionCapGeometry } from './section-cap.js';
 
 const form = document.querySelector('#convert-form');
 const input = document.querySelector('#file-input');
@@ -123,7 +124,11 @@ function createViewer(stlBlob) {
     const material = new THREE.MeshStandardMaterial({ color: 0xc9d6cd, metalness: 0.32, roughness: 0.45, side: THREE.DoubleSide, clippingPlanes: [] });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
-    scene.add(mesh);
+    const capMaterial = new THREE.MeshStandardMaterial({ color: 0xb8c9bf, metalness: 0.22, roughness: 0.56, side: THREE.DoubleSide });
+    const capMesh = new THREE.Mesh(new THREE.BufferGeometry(), capMaterial);
+    capMesh.frustumCulled = false;
+    capMesh.visible = false;
+    scene.add(mesh, capMesh);
     const box = new THREE.Box3();
     const point = new THREE.Vector3();
     for (let index = 0; index < geometry.attributes.position.count; index += 1) box.expandByPoint(point.fromBufferAttribute(geometry.attributes.position, index));
@@ -131,9 +136,10 @@ function createViewer(stlBlob) {
     const size = box.getSize(new THREE.Vector3());
     const radius = Math.max(size.length() / 2, 0.01);
     const edgeGeometry = new THREE.EdgesGeometry(geometry, 15);
-    const outlineLines = new THREE.LineSegments(edgeGeometry, new THREE.LineBasicMaterial({ color: 0x14251c }));
-    const hiddenLines = new THREE.LineSegments(edgeGeometry, new THREE.LineDashedMaterial({ color: 0xd5f36c, dashSize: radius * 0.035, gapSize: radius * 0.025, transparent: true, opacity: 0.85, depthTest: true, depthFunc: THREE.GreaterDepth, depthWrite: false }));
-    hiddenLines.computeLineDistances();
+    const outlineMaterial = new THREE.LineBasicMaterial({ color: 0x14251c, clippingPlanes: [] });
+    const hiddenLineMaterial = new THREE.LineDashedMaterial({ color: 0xd5f36c, dashSize: radius * 0.035, gapSize: radius * 0.025, transparent: true, opacity: 0.85, depthTest: true, depthFunc: THREE.GreaterDepth, depthWrite: false, clippingPlanes: [] });
+    const outlineLines = new THREE.LineSegments(edgeGeometry, outlineMaterial);
+    const hiddenLines = new THREE.LineSegments(edgeGeometry, hiddenLineMaterial);
     const centerLineGroup = new THREE.Group();
     const centerMarkGroup = new THREE.Group();
     const hatchGroup = new THREE.Group();
@@ -144,7 +150,7 @@ function createViewer(stlBlob) {
     scene.add(outlineLines, hiddenLines, centerLineGroup, centerMarkGroup, hatchGroup, projectionGroup, axesHelper, boxHelper);
     grid.scale.setScalar(Math.max(radius / 20, 0.01));
     grid.position.y = box.min.y;
-    sceneState = { mesh, geometry, box, center, size, radius, material, sectionPlane, outlineLines, hiddenLines, centerLineGroup, centerMarkGroup, hatchGroup, projectionGroup, axesHelper, boxHelper };
+    sceneState = { mesh, geometry, box, center, size, radius, material, capMesh, capMaterial, outlineMaterial, hiddenLineMaterial, sectionPlane, outlineLines, hiddenLines, centerLineGroup, centerMarkGroup, hatchGroup, projectionGroup, axesHelper, boxHelper };
     buildDrawingOverlays();
     applyDisplayMode(displayMode);
     updateOverlays();
@@ -363,11 +369,15 @@ function createViewer(stlBlob) {
   function applyDisplayMode(mode) {
     displayMode = mode;
     if (!sceneState) return;
-    const { mesh, material, outlineLines, hiddenLines } = sceneState;
+    const { material, capMaterial, outlineLines, hiddenLines } = sceneState;
     material.wireframe = mode === 'wireframe';
     material.transparent = mode === 'hidden';
     material.opacity = mode === 'hidden' ? 0.78 : 1;
     material.depthWrite = true;
+    capMaterial.wireframe = mode === 'wireframe';
+    capMaterial.transparent = mode === 'hidden';
+    capMaterial.opacity = mode === 'hidden' ? 0.78 : 1;
+    capMaterial.depthWrite = true;
     outlineLines.visible = mode === 'outlined' || mode === 'hidden';
     hiddenLines.visible = mode === 'hidden';
   }
@@ -397,7 +407,12 @@ function createViewer(stlBlob) {
 
   function toggleSection(enabled) {
     if (!sceneState) return;
-    sceneState.material.clippingPlanes = enabled ? [sectionPlane] : [];
+    const { material, outlineMaterial, hiddenLineMaterial, capMesh } = sceneState;
+    const clippingPlanes = enabled ? [sectionPlane] : [];
+    material.clippingPlanes = clippingPlanes;
+    outlineMaterial.clippingPlanes = clippingPlanes;
+    hiddenLineMaterial.clippingPlanes = clippingPlanes;
+    capMesh.visible = enabled;
     section.querySelector('#section-range').disabled = !enabled;
     updateSection();
     updateOverlays();
@@ -417,6 +432,9 @@ function createViewer(stlBlob) {
     const coordinate = sceneState.box.min.getComponent(axisIndex) + sceneState.size.getComponent(axisIndex) * percent / 100;
     sectionPlane.normal.set(0, 0, 0).setComponent(axisIndex, sectionSide);
     sectionPlane.constant = -sectionSide * coordinate;
+    const nextCapGeometry = buildSectionCapGeometry(sceneState.geometry, axisIndex, coordinate, sectionSide);
+    sceneState.capMesh.geometry.dispose();
+    sceneState.capMesh.geometry = nextCapGeometry;
     section.querySelector('#section-value').value = `${planeLabel} · ${percent}%`;
     updateHatching();
   }
