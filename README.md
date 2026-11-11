@@ -1,6 +1,6 @@
 # 3D Model to STL
 
-A local web converter for PRC-based 3D PDFs and common triangle-mesh formats. It writes binary STL without reducing the object to the PDF page rectangle or a fallback primitive.
+A local converter for PRC- and U3D-based 3D PDFs and common triangle-mesh formats. It writes binary STL from model geometry rather than the PDF page rectangle or a fallback primitive.
 
 ## Run locally
 
@@ -9,7 +9,7 @@ npm install
 npm start
 ```
 
-Open <http://localhost:3000> and upload a PRC-based 3D PDF or a supported mesh file. PDF conversion uses the server locally and mesh conversion runs in the browser; neither path writes uploaded models to disk.
+Open <http://localhost:3000> and upload a PRC- or U3D-based 3D PDF or a supported mesh file. PDF conversion uses the server locally and mesh conversion runs in the browser; neither path writes uploaded models to disk.
 
 ## GitHub Pages
 
@@ -22,6 +22,8 @@ npm run build:pages
 The included `.github/workflows/deploy-pages.yml` workflow publishes the generated `dist` directory. GitHub Pages cannot run the Node upload server, so the Pages build uses the browser WebAssembly converter instead.
 
 The current upload limit is 100 MB. Supported mesh inputs are STL, OBJ, PLY, OFF, GLB, embedded-data GLTF, and 3MF. STEP, IGES, Parasolid, and other CAD B-rep formats are not supported yet and require a CAD kernel such as Open Cascade.
+
+U3D PDF conversion decodes CLOD base meshes only; progressive refinements and point/line sets are not decoded.
 
 ## Viewer controls
 
@@ -47,6 +49,6 @@ Center-line and center-mark overlays use a heuristic circular-feature estimator.
 
 ## Implementation
 
-- `converter.mjs`: PDF PRC extraction, PRC→GLB conversion, GLB triangle traversal, binary STL writing
-- `public/mesh-converter.js`: browser-side mesh loading, transform application, triangulation, and binary STL writing
+- `converter.mjs`: PDF PRC/U3D extraction, PRC→GLB conversion, GLB triangle traversal, binary STL writing
+- `public/u3d-converter.js`: U3D CLOD base-mesh decoding and binary STL writing
 - `public/app.js`: upload flow and Three.js viewer
