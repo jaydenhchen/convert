@@ -1,4 +1,5 @@
 import { createPrcConverter } from '@needle-tools/prc';
+import { convertU3dToStl } from './u3d-converter.js';
 
 const textDecoder = new TextDecoder('latin1');
 const textEncoder = new TextEncoder();
@@ -63,7 +64,7 @@ async function decodeStream(input, filters) {
   return output;
 }
 
-function extractPrc(pdf) {
+async function extractPdf3dStreams(pdf) {
   const text = textDecoder.decode(pdf);
   if (!text.startsWith('%PDF-')) throw new Error('The uploaded file is not a PDF.');
   const headers = [];
@@ -71,37 +72,40 @@ function extractPrc(pdf) {
   for (let match = pattern.exec(text); match; match = pattern.exec(text)) headers.push({ number: Number(match[1]), start: match.index + match[0].lastIndexOf(match[1]) });
   const objects = new Map();
   headers.forEach((header, index) => objects.set(header.number, pdf.slice(header.start, headers[index + 1]?.start ?? pdf.length)));
-  return (async () => {
-    const streams = [];
-    for (const object of objects.values()) {
-      const streamOffset = findBytes(object, marker('stream'));
-      if (streamOffset < 0) continue;
-      const dictionary = textDecoder.decode(object.slice(0, streamOffset));
-      if (!/\/Subtype\s*\/PRC\b/.test(dictionary)) continue;
-      const directLength = dictionary.match(/\/Length\s+(\d+)/)?.[1];
-      const indirectNumber = dictionary.match(/\/Length\s+(\d+)\s+(\d+)\s+R/)?.[1];
-      let length = directLength ? Number(directLength) : null;
-      if (length === null && indirectNumber) {
-        const lengthObject = textDecoder.decode(objects.get(Number(indirectNumber)) ?? new Uint8Array());
-        length = Number(lengthObject.match(/(?:^|\s)(\d+)\s+endobj/)?.[1] ?? 0) || null;
-      }
-      let start = streamOffset + 6;
-      if (object[start] === 13 && object[start + 1] === 10) start += 2;
-      else if (object[start] === 10 || object[start] === 13) start += 1;
-      const fallbackEnd = findBytes(object, marker('endstream'), start);
-      const end = length === null ? fallbackEnd : start + length;
-      if (end < start || end > object.length) throw new Error('The embedded PRC stream is truncated.');
-      const filtersMatch = dictionary.match(/\/Filter\s*(\[[^\]]+\]|\/\w+)/s)?.[1] ?? '';
-      const filters = [...filtersMatch.matchAll(/\/(\w+)/g)].map((match) => match[1]);
-      streams.push(await decodeStream(object.slice(start, end), filters));
+  const streams = { PRC: [], U3D: [] };
+  for (const object of objects.values()) {
+    const streamOffset = findBytes(object, marker('stream'));
+    if (streamOffset < 0) continue;
+    const dictionary = textDecoder.decode(object.slice(0, streamOffset));
+    const subtype = dictionary.match(/\/Subtype\s*\/(PRC|U3D)\b/)?.[1];
+    if (!subtype) continue;
+    const directLength = dictionary.match(/\/Length\s+(\d+)/)?.[1];
+    const indirectNumber = dictionary.match(/\/Length\s+(\d+)\s+(\d+)\s+R/)?.[1];
+    let length = directLength ? Number(directLength) : null;
+    if (length === null && indirectNumber) {
+      const lengthObject = textDecoder.decode(objects.get(Number(indirectNumber)) ?? new Uint8Array());
+      length = Number(lengthObject.match(/(?:^|\s)(\d+)\s+endobj/)?.[1] ?? 0) || null;
     }
-    if (streams.length === 0) throw new Error('No embedded PRC 3D model was found. This converter supports PRC-based 3D PDFs.');
-    const combined = new Uint8Array(streams.reduce((sum, stream) => sum + stream.length, 0));
-    let offset = 0;
-    streams.forEach((stream) => { combined.set(stream, offset); offset += stream.length; });
-    const header = findBytes(combined.slice(0, 16), marker('PRC'));
-    return header > 0 ? combined.slice(header) : combined;
-  })();
+    let start = streamOffset + 6;
+    if (object[start] === 13 && object[start + 1] === 10) start += 2;
+    else if (object[start] === 10 || object[start] === 13) start += 1;
+    const fallbackEnd = findBytes(object, marker('endstream'), start);
+    const end = length === null ? fallbackEnd : start + length;
+    if (end < start || end > object.length) throw new Error(`The embedded ${subtype} stream is truncated.`);
+    const filtersMatch = dictionary.match(/\/Filter\s*(\[[^\]]+\]|\/\w+)/s)?.[1] ?? '';
+    const filters = [...filtersMatch.matchAll(/\/(\w+)/g)].map((match) => match[1]);
+    streams[subtype].push(await decodeStream(object.slice(start, end), filters));
+  }
+  return streams;
+}
+
+function combinePrcStreams(streams) {
+  if (streams.length === 0) throw new Error('No embedded PRC 3D model was found. This converter supports PRC-based 3D PDFs.');
+  const combined = new Uint8Array(streams.reduce((sum, stream) => sum + stream.length, 0));
+  let offset = 0;
+  streams.forEach((stream) => { combined.set(stream, offset); offset += stream.length; });
+  const header = findBytes(combined.slice(0, 16), marker('PRC'));
+  return header > 0 ? combined.slice(header) : combined;
 }
 
 function componentSize(type) { return type === 5121 ? 1 : type === 5123 ? 2 : 4; }
@@ -165,10 +169,15 @@ function writeStl(facets) {
 
 let converterPromise;
 export async function convertPdfToStl(pdf) {
-  const prc = await extractPrc(bytesFor(pdf));
-  converterPromise ??= createPrcConverter();
-  const converter = await converterPromise;
-  const { output } = converter.convert({ input: prc, inputFileName: 'model.prc', outputFileName: 'model.glb' });
-  const facets = triangles(parseGlb(bytesFor(output)));
-  return { stl: writeStl(facets), triangleCount: facets.length };
+  const streams = await extractPdf3dStreams(bytesFor(pdf));
+  if (streams.PRC.length > 0) {
+    const prc = combinePrcStreams(streams.PRC);
+    converterPromise ??= createPrcConverter();
+    const converter = await converterPromise;
+    const { output } = converter.convert({ input: prc, inputFileName: 'model.prc', outputFileName: 'model.glb' });
+    const facets = triangles(parseGlb(bytesFor(output)));
+    return { stl: writeStl(facets), triangleCount: facets.length };
+  }
+  if (streams.U3D.length > 0) return convertU3dToStl(streams.U3D);
+  throw new Error('No embedded PRC or U3D 3D model was found. This converter supports PRC- and U3D-based 3D PDFs.');
 }

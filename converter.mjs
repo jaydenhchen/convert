@@ -1,5 +1,6 @@
 import { inflateSync } from 'node:zlib';
 import { createPrcConverter } from '@needle-tools/prc';
+import { convertU3dToStl } from './public/u3d-converter.js';
 
 const PDF_HEADER = Buffer.from('%PDF-');
 const STREAM_MARKER = Buffer.from('stream');
@@ -84,23 +85,23 @@ function findObjectHeaders(pdf) {
   return headers;
 }
 
-function extract3dStreams(pdf) {
+function extractPdf3dStreams(pdf) {
   if (!pdf.subarray(0, PDF_HEADER.length).equals(PDF_HEADER)) throw new Error('The uploaded file is not a PDF.');
   const headers = findObjectHeaders(pdf);
   const objects = new Map();
   for (let index = 0; index < headers.length; index += 1) {
     const header = headers[index];
     const end = index + 1 < headers.length ? headers[index + 1].start : pdf.length;
-    const object = pdf.subarray(header.start, end);
-    objects.set(header.number, object);
+    objects.set(header.number, pdf.subarray(header.start, end));
   }
 
-  const streams = [];
+  const streams = { PRC: [], U3D: [] };
   for (const object of objects.values()) {
     const streamOffset = indexOfBytes(object, STREAM_MARKER);
     if (streamOffset < 0) continue;
     const dictionary = object.subarray(0, streamOffset).toString('latin1');
-    if (!/\/Subtype\s*\/PRC\b/.test(dictionary)) continue;
+    const subtype = dictionary.match(/\/Subtype\s*\/(PRC|U3D)\b/)?.[1];
+    if (!subtype) continue;
 
     const length = parsePdfNumber(dictionary, 'Length') ?? (() => {
       const reference = parseIndirectReference(dictionary, 'Length');
@@ -111,19 +112,25 @@ function extract3dStreams(pdf) {
     })();
 
     let dataStart = streamOffset + STREAM_MARKER.length;
-    if (pdf[dataStart] === 13 && pdf[dataStart + 1] === 10) dataStart += 2;
-    else if (pdf[dataStart] === 10 || pdf[dataStart] === 13) dataStart += 1;
+    if (object[dataStart] === 13 && object[dataStart + 1] === 10) dataStart += 2;
+    else if (object[dataStart] === 10 || object[dataStart] === 13) dataStart += 1;
     const fallbackEnd = indexOfBytes(object, ENDSTREAM_MARKER, dataStart);
     const dataEnd = length === null ? fallbackEnd : dataStart + length;
-    if (dataEnd < dataStart || dataEnd > object.length) throw new Error('The embedded PRC stream is truncated.');
-    const encoded = object.subarray(dataStart, dataEnd);
-    streams.push(decodePdfStream(encoded, parseFilters(dictionary)));
+    if (dataEnd < dataStart || dataEnd > object.length) throw new Error(`The embedded ${subtype} stream is truncated.`);
+    streams[subtype].push(decodePdfStream(object.subarray(dataStart, dataEnd), parseFilters(dictionary)));
   }
+  return streams;
+}
 
+function combinePrcStreams(streams) {
   if (streams.length === 0) throw new Error('No embedded PRC 3D model was found. This converter supports PRC-based 3D PDFs.');
   const combined = Buffer.concat(streams);
   const headerOffset = combined.subarray(0, 16).indexOf(Buffer.from('PRC'));
   return headerOffset > 0 ? combined.subarray(headerOffset) : combined;
+}
+
+function extract3dStreams(pdf) {
+  return combinePrcStreams(extractPdf3dStreams(pdf).PRC);
 }
 
 function readComponent(data, offset, componentType) {
@@ -286,10 +293,15 @@ export function extractPrcFromPdf(pdf) {
 }
 
 export async function convertPdfToStl(pdf) {
-  const prc = extract3dStreams(pdf);
-  const converter = await getConverter();
-  const { output: glb } = converter.convert({ input: prc, inputFileName: 'model.prc', outputFileName: 'model.glb' });
-  const model = parseGlb(Buffer.from(glb));
-  const triangles = collectTriangles(model);
-  return { stl: trianglesToStl(triangles), triangleCount: triangles.length };
+  const streams = extractPdf3dStreams(pdf);
+  if (streams.PRC.length > 0) {
+    const prc = combinePrcStreams(streams.PRC);
+    const converter = await getConverter();
+    const { output: glb } = converter.convert({ input: prc, inputFileName: 'model.prc', outputFileName: 'model.glb' });
+    const model = parseGlb(Buffer.from(glb));
+    const triangles = collectTriangles(model);
+    return { stl: trianglesToStl(triangles), triangleCount: triangles.length };
+  }
+  if (streams.U3D.length > 0) return convertU3dToStl(streams.U3D);
+  throw new Error('No embedded PRC or U3D 3D model was found. This converter supports PRC- and U3D-based 3D PDFs.');
 }
